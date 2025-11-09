@@ -1,4 +1,7 @@
-.cache/
-build*/
-bindings/target/
+# Nix
+result
+result-*
+.direnv/
 
+# GitHub Actions
+.github/workflows/*.log

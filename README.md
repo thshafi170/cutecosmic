@@ -4,11 +4,18 @@ Plugins to the Qt toolkit that help make Qt (and KDE) applications look and feel
 
 Currently consists of a Qt Platform Theme plugin.
 
-> [!IMPORTANT]
-> CuteCosmic is still experimental, but should already work reasonably well. Advanced users are encouraged to test it and [report any issues](https://github.com/IgKh/cutecosmic/issues).
+![Build Status](https://github.com/thshafi170/cutecosmic-nix/actions/workflows/build.yml/badge.svg)
 
-> [!NOTE]
-> This is an unofficial project and is not in any way affiliated with or endorsed by System76, Inc.
+> [!CAUTION]
+> CuteCosmic is still experimental, things can break for NixOS.
+
+>[!IMPORTANT]
+> This fork of [CuteCosmic](https://github.com/IgKh/cutecosmic) is made specifically for NixOS. Use this repo to [report issues](https://github.com/thshafi170/cutecosmic-nix/issues) regarding CuteCosmic running on NixOS.
+
+>[!Warning]
+> CuteCosmic currently supports `nixos-unstable` (25.11 as of November 2025) branch. Advanced users can test this with `nixos-stable` branch at their own risk.
+> 
+> Although, support can be added through well-tested PRs.
 
 ## Features
 
@@ -37,45 +44,144 @@ KDE Discover rocking the COSMIC version of the [Catppuccin](https://github.com/c
 
 ## Installation
 
-CuteCosmic must currently be built from source. To do so, you'll need a C++ compiler, the most recent Rust stable compiler, CMake and development files (headers, libraries and tools) for Qt 6.
+### Using Nix Flakes (Recommended)
 
-The project aims to support only the last three released minor versions of Qt, as well as the most recent Qt 6 LTS series (if it is not one of the three). Currently this means Qt 6.8, 6.9 and 6.10.
+#### Optional: Setup Cachix for faster installation
 
-> [!IMPORTANT]
-> CuteCosmic must be built and installed separately for each installation of Qt you have. Some applications (like Qt Creator) may ship with their own installation of Qt, in addition to the system wide installation. Please also be aware that applications distributed in self-contained packages (AppImage, Flatpak, etc) also have their own Qt build, which can't be easily extended.
-
-> [!IMPORTANT]
-> CuteCosmic makes extensive use of private Qt APIs that are outside the scope of Qt's normal compatibility guarantees. If you update a Qt installation for which CuteCosmic was built (including patch releases), it **MUST** be re-built to function properly.
-
-To build and install use a regular CMake invocation like this:
+To avoid building from source, use the CuteCosmic binary cache:
 
 ```bash
-  cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-  cmake --build build -t install
+# Install cachix if not already installed
+nix-env -iA cachix -f https://cachix.org/api/v1/install
+
+# Add the cutecosmic cache
+cachix use cutecosmic
 ```
 
-You may need to add `sudo` to the last command if building against a system-wide Qt installation. For building against a specific Qt installation, use the path to its specific `qt-cmake` wrapper script instead of `cmake`.
+Or add it directly to your NixOS configuration:
+
+```nix
+{
+  nix.settings = {
+    substituters = [ "https://cutecosmic.cachix.org" ];
+    trusted-public-keys = [ "cutecosmic.cachix.org-1:M2oYEewcaHGXvY5E0gk5hM/te42lRJHeG+x6v7VmWoo=" ];
+  };
+}
+```
+
+#### 1. Add CuteCosmic to your flake inputs
+
+```nix
+{
+  inputs = {
+    #...other inputs
+    cutecosmic.url = "github:thshafi170/cutecosmic-nix";
+  };
+  #...rest of flake.nix
+}
+```
+
+#### 2. Install in your NixOS configuration
+
+```nix
+{ inputs, pkgs, ... }:
+{
+  environment.systemPackages = [
+    inputs.cutecosmic.packages.${pkgs.system}.default
+  ];
+}
+```
+
+#### 3. Set the platform theme environment variable
+
+```nix
+# In your NixOS configuration
+environment.sessionVariables = {
+  QT_QPA_PLATFORMTHEME = "cosmic";
+};
+```
+
+### Building from Source with Nix
+
+```bash
+# Clone the repository
+git clone https://github.com/thshafi170/cutecosmic-nix.git
+cd cutecosmic-nix
+
+# Optional: Use cachix for dependencies
+cachix use cutecosmic
+
+# Build using Nix flakes
+nix build
+
+# Or without flakes
+nix-build
+```
+
+The built plugin will be available in `./result/lib/qt-6/plugins/platformthemes/libcutecosmictheme.so`
+
+### Development Environment
+
+Enter a development shell with all dependencies:
+
+```bash
+# With flakes
+nix develop
+
+# Without flakes
+nix-shell
+```
 
 ## Usage
 
 If installed correctly, CuteCosmic will automatically be loaded and used when working from inside a `cosmic-session`.
 
-You can force its' usage with the `QT_QPA_PLATFORMTHEME` environment variable, e.g:
+You can force its usage with the `QT_QPA_PLATFORMTHEME` environment variable:
+
 ```bash
 QT_QPA_PLATFORMTHEME=cosmic /path/to/a/qt/app
 ```
 
-If not working, troubleshoot by setting the `QT_DEBUG_PLUGINS` environment variable and watch the log traces to see if `libcutecosmictheme.so` is available and loaded.
+### Testing Without Installing
+
+After building with Nix, you can test the plugin without system-wide installation:
+
+```bash
+export QT_QPA_PLATFORMTHEME=cosmic
+export QT_PLUGIN_PATH=$(pwd)/result/lib/qt-6/plugins:$QT_PLUGIN_PATH
+qtcreator  # or any Qt application
+```
+
+### Troubleshooting
+
+If not working, set the `QT_DEBUG_PLUGINS` environment variable and watch the log traces to see if `libcutecosmictheme.so` is available and loaded:
+
+```bash
+QT_DEBUG_PLUGINS=1 QT_QPA_PLATFORMTHEME=cosmic your-qt-app
+```
 
 ## Configuration
 
 Most of the configuration is done using the options already present in the COSMIC Settings application.
 
-CuteCosmic will by default use the Breeze widgets style engine if installed, or the built-in Fusion style otherwise. If you want it to use another style by default (e.g. Kvantum), you can set the `CUTECOSMIC_DEFAULT_STYLE` environment variable in your profile.
+CuteCosmic will by default use the Breeze widgets style engine if installed, or the built-in Fusion style otherwise. If you want it to use another style by default (e.g. Kvantum), you can set the `CUTECOSMIC_DEFAULT_STYLE` environment variable:
+
+```nix
+# In your NixOS configuration
+environment.sessionVariables = {
+  CUTECOSMIC_DEFAULT_STYLE = "kvantum";
+};
+```
+
+## Important Notes
+
+1. CuteCosmic makes extensive use of private Qt APIs that are outside the scope of Qt's normal compatibility guarantees. The Nix build pins specific Qt versions to ensure compatibility.
+
+2. Applications distributed in self-contained packages (AppImage, Flatpak, etc.) have their own Qt build which cannot easily be extended with this plugin. This package is primarily for system Qt applications.
 
 ## Contributing
 
-Issue reports and code contributions are gratefully accepted. Please do not send unsolicited Pull Requests, please first propose patch ideas and plans in the relevant issue (or open an issue if one doesn't already exists).
+Issue reports and code contributions are gratefully accepted. Please do not send unsolicited Pull Requests; please first propose patch ideas and plans in the relevant issue (or open an issue if one doesn't already exist).
 
 ## License
 
